@@ -1,0 +1,21 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    command: python -m app.bot
+    volumes:
+      - dbdata:/srv/app/data
+
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    command: uvicorn app.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - dbdata:/srv/app/data
+
+volumes:
+  dbdata:
