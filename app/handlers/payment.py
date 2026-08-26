@@ -1,0 +1,522 @@
+import logging
+
+from aiogram import F, Router
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    PreCheckoutQuery,
+)
+
+from app.db import async_session
+from app.keyboards.inline import payment_keyboard, payment_method_keyboard
+from app.models import Payment, User
+from app.services import platega
+from app.services.payments import (
+    build_stars_invoice,
+    create_card_payment,
+    create_crypto_payment,
+    create_sbp_payment,
+)
+from app.services.referral import maybe_reward_referrer
+from app.services.subscription import send_subscription
+from app.services.tariffs import get_tariff
+from app.services.users import get_or_create_user
+from app.texts.messages import PAYMENT_THANKS_TEXT
+
+logger = logging.getLogger("payment_handler")
+
+router = Router()
+
+
+# ==========================================
+# Покупка подписки — сначала способ оплаты
+# ==========================================
+
+@router.message(F.text == "💳 Купить подписку")
+async def buy_subscription(message: Message):
+
+    await message.answer(
+        "Выберите способ оплаты:",
+        reply_markup=payment_method_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "method_stars")
+async def choose_stars_method(callback: CallbackQuery):
+
+    await callback.answer()
+
+    await callback.message.edit_text(
+        "💎 Выберите тариф💎 :",
+        reply_markup=await payment_keyboard("stars"),
+    )
+
+
+@router.callback_query(F.data == "method_card")
+async def choose_card_method(callback: CallbackQuery):
+
+    await callback.answer()
+
+    await callback.message.edit_text(
+        "💎 Выберите тариф💎 :",
+        reply_markup=await payment_keyboard("card"),
+    )
+
+
+@router.callback_query(F.data == "method_sbp")
+async def choose_sbp_method(callback: CallbackQuery):
+
+    await callback.answer()
+
+    await callback.message.edit_text(
+        "💎 Выберите тариф💎 :",
+        reply_markup=await payment_keyboard("sbp"),
+    )
+
+
+@router.callback_query(F.data == "method_crypto")
+async def choose_crypto_method(callback: CallbackQuery):
+
+    await callback.answer()
+
+    await callback.message.edit_text(
+        "💎 Выберите тариф💎 :",
+        reply_markup=await payment_keyboard("crypto"),
+    )
+
+
+@router.callback_query(F.data == "method_balance")
+async def choose_balance_method(callback: CallbackQuery):
+
+    user = await get_or_create_user(
+        callback.from_user.id,
+        callback.from_user.username,
+    )
+
+    await callback.answer()
+
+    await callback.message.edit_text(
+        f"💰 Ваш баланс: {user.balance}₽\n\nВыберите тариф:",
+        reply_markup=await payment_keyboard("balance", balance=user.balance),
+    )
+
+
+@router.callback_query(F.data == "balance_insufficient")
+async def balance_insufficient(callback: CallbackQuery):
+    await callback.answer(
+        "Недостаточно средств на бонусном балансе для этого тарифа.",
+        show_alert=True,
+    )
+
+
+@router.callback_query(F.data == "payment_method_back")
+async def back_to_payment_methods(callback: CallbackQuery):
+
+    await callback.answer()
+
+    await callback.message.edit_text(
+        "Выберите способ оплаты:",
+        reply_markup=payment_method_keyboard(),
+    )
+
+
+# ==========================================
+# Telegram Stars
+# ==========================================
+
+@router.callback_query(F.data.startswith("buy_stars_"))
+async def buy_stars(callback: CallbackQuery):
+
+    tariff_key = callback.data.removeprefix("buy_stars_")
+
+    tariff = await get_tariff(tariff_key)
+
+    if tariff is None:
+        await callback.answer(
+            "Тариф не найден.",
+            show_alert=True,
+        )
+        return
+
+    invoice = build_stars_invoice(tariff)
+
+    await callback.answer()
+
+    await callback.message.answer_invoice(
+        provider_token="",
+        payload=f"subscription:{tariff_key}",
+        **invoice,
+    )
+
+
+# ==========================================
+# Банковская карта — Platega
+# ==========================================
+
+@router.callback_query(F.data.startswith("buy_card_"))
+async def buy_card(callback: CallbackQuery):
+
+    tariff_key = callback.data.removeprefix("buy_card_")
+
+    tariff = await get_tariff(tariff_key)
+
+    if tariff is None or tariff.get("card") is None:
+        await callback.answer(
+            "Тариф не найден.",
+            show_alert=True,
+        )
+        return
+
+    await callback.answer()
+
+    user = await get_or_create_user(
+        callback.from_user.id,
+        callback.from_user.username,
+    )
+
+    try:
+        pay_url = await create_card_payment(
+            user=user,
+            chat_id=callback.message.chat.id,
+            tariff_key=tariff_key,
+            tariff=tariff,
+        )
+    except platega.PlategaError as e:
+        logger.error(
+            "buy_card: Platega API error tg_id=%s tariff=%s status=%s body=%s",
+            callback.from_user.id, tariff_key, e.status, e.body,
+        )
+        await callback.message.answer(
+            "Не получилось создать ссылку на оплату картой. "
+            "Попробуйте ещё раз чуть позже или оплатите через Telegram Stars."
+        )
+        return
+    except Exception:
+        # Любая другая ошибка (сеть, таймаут, неожиданный формат ответа
+        # Platega без "transactionId"/"redirect" и т.п.) — раньше здесь
+        # исключение улетало необработанным, aiogram его логировал, а
+        # пользователь просто не получал никакого ответа после нажатия
+        # на тариф. Логируем с traceback и всё равно отвечаем.
+        logger.exception(
+            "buy_card: unexpected error tg_id=%s tariff=%s",
+            callback.from_user.id, tariff_key,
+        )
+        await callback.message.answer(
+            "Не получилось создать ссылку на оплату картой (техническая "
+            "ошибка). Попробуйте ещё раз чуть позже или оплатите через "
+            "Telegram Stars."
+        )
+        return
+
+    await callback.message.answer(
+        f"Оплата: {tariff['title']} — {tariff['card']}₽\n\n"
+        "После оплаты подписка придёт в этот чат автоматически "
+        "в течение пары минут.",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[
+                InlineKeyboardButton(
+                    text="💳 Перейти к оплате",
+                    url=pay_url,
+                )
+            ]]
+        ),
+    )
+
+
+# ==========================================
+# СБП (QR-код) — Platega
+# ==========================================
+
+@router.callback_query(F.data.startswith("buy_sbp_"))
+async def buy_sbp(callback: CallbackQuery):
+
+    tariff_key = callback.data.removeprefix("buy_sbp_")
+
+    tariff = await get_tariff(tariff_key)
+
+    if tariff is None or tariff.get("card") is None:
+        await callback.answer(
+            "Тариф не найден.",
+            show_alert=True,
+        )
+        return
+
+    await callback.answer()
+
+    user = await get_or_create_user(
+        callback.from_user.id,
+        callback.from_user.username,
+    )
+
+    try:
+        pay_url = await create_sbp_payment(
+            user=user,
+            chat_id=callback.message.chat.id,
+            tariff_key=tariff_key,
+            tariff=tariff,
+        )
+    except platega.PlategaError as e:
+        logger.error(
+            "buy_sbp: Platega API error tg_id=%s tariff=%s status=%s body=%s",
+            callback.from_user.id, tariff_key, e.status, e.body,
+        )
+        await callback.message.answer(
+            "Не получилось создать ссылку на оплату через СБП. "
+            "Попробуйте ещё раз чуть позже или оплатите через Telegram Stars."
+        )
+        return
+    except Exception:
+        logger.exception(
+            "buy_sbp: unexpected error tg_id=%s tariff=%s",
+            callback.from_user.id, tariff_key,
+        )
+        await callback.message.answer(
+            "Не получилось создать ссылку на оплату через СБП (техническая "
+            "ошибка). Попробуйте ещё раз чуть позже или оплатите через "
+            "Telegram Stars."
+        )
+        return
+
+    await callback.message.answer(
+        f"Оплата: {tariff['title']} — {tariff['card']}₽\n\n"
+        "На открывшейся странице отсканируйте QR-код в приложении "
+        "вашего банка (СБП). После оплаты подписка придёт в этот чат "
+        "автоматически в течение пары минут.",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[
+                InlineKeyboardButton(
+                    text="📱 Перейти к оплате (QR)",
+                    url=pay_url,
+                )
+            ]]
+        ),
+    )
+
+
+# ==========================================
+# Криптовалюта — Platega
+# ==========================================
+
+@router.callback_query(F.data.startswith("buy_crypto_"))
+async def buy_crypto(callback: CallbackQuery):
+
+    tariff_key = callback.data.removeprefix("buy_crypto_")
+
+    tariff = await get_tariff(tariff_key)
+
+    if tariff is None or tariff.get("card") is None:
+        await callback.answer(
+            "Тариф не найден.",
+            show_alert=True,
+        )
+        return
+
+    await callback.answer()
+
+    user = await get_or_create_user(
+        callback.from_user.id,
+        callback.from_user.username,
+    )
+
+    try:
+        pay_url = await create_crypto_payment(
+            user=user,
+            chat_id=callback.message.chat.id,
+            tariff_key=tariff_key,
+            tariff=tariff,
+        )
+    except platega.PlategaError as e:
+        logger.error(
+            "buy_crypto: Platega API error tg_id=%s tariff=%s status=%s body=%s",
+            callback.from_user.id, tariff_key, e.status, e.body,
+        )
+        await callback.message.answer(
+            "Не получилось создать ссылку на оплату криптовалютой. "
+            "Попробуйте ещё раз чуть позже или оплатите через Telegram Stars."
+        )
+        return
+    except Exception:
+        logger.exception(
+            "buy_crypto: unexpected error tg_id=%s tariff=%s",
+            callback.from_user.id, tariff_key,
+        )
+        await callback.message.answer(
+            "Не получилось создать ссылку на оплату криптовалютой (техническая "
+            "ошибка). Попробуйте ещё раз чуть позже или оплатите через "
+            "Telegram Stars."
+        )
+        return
+
+    await callback.message.answer(
+        f"Оплата: {tariff['title']} — {tariff['card']}₽ (по курсу в криптовалюте)\n\n"
+        "На открывшейся странице выберите монету и сеть — точная сумма в "
+        "криптовалюте будет показана там же. После оплаты подписка придёт "
+        "в этот чат автоматически в течение пары минут.",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[
+                InlineKeyboardButton(
+                    text="₿ Перейти к оплате",
+                    url=pay_url,
+                )
+            ]]
+        ),
+    )
+
+
+# ==========================================
+# Бонусный баланс — списывается сразу, без внешнего шлюза
+# ==========================================
+
+@router.callback_query(F.data.startswith("buy_balance_"))
+async def buy_balance(callback: CallbackQuery):
+
+    tariff_key = callback.data.removeprefix("buy_balance_")
+
+    tariff = await get_tariff(tariff_key)
+
+    if tariff is None or tariff.get("balance") is None:
+        await callback.answer(
+            "Тариф не найден.",
+            show_alert=True,
+        )
+        return
+
+    price = tariff["balance"]
+
+    user = await get_or_create_user(
+        callback.from_user.id,
+        callback.from_user.username,
+    )
+
+    if user.balance < price:
+        await callback.answer(
+            "Недостаточно средств на бонусном балансе для этого тарифа.",
+            show_alert=True,
+        )
+        return
+
+    await callback.answer()
+
+    async with async_session() as session:
+        # Перечитываем внутри той же сессии перед списанием — на
+        # случай, если баланс успел измениться между проверкой выше и
+        # этим моментом (двойной тап по кнопке и т.п.).
+        fresh_user = await session.get(User, user.id)
+        if fresh_user is None or fresh_user.balance < price:
+            await callback.message.answer(
+                "Недостаточно средств на балансе — возможно, баланс уже был "
+                "потрачен в другом месте. Проверьте баланс и попробуйте ещё раз."
+            )
+            return
+
+        fresh_user.balance -= price
+        remaining_balance = fresh_user.balance
+
+        session.add(
+            Payment(
+                user_id=user.id,
+                tariff_key=tariff_key,
+                method="balance",
+                amount=price,
+                days=tariff["days"],
+            )
+        )
+        await session.commit()
+
+    await send_subscription(
+        callback.message,
+        user,
+        tariff["days"],
+    )
+
+    await callback.message.answer(
+        f"✅ Оплата прошла успешно! Списано {price}₽ с бонусного баланса.\n"
+        f"Остаток баланса: {remaining_balance}₽."
+    )
+
+    # Для процента в реферальную программу — тот же рублёвый эквивалент
+    # тарифа, что и у остальных способов оплаты (см. buy-хендлеры выше
+    # и successful_payment).
+    await maybe_reward_referrer(user.id, callback.bot, tariff.get("card") or 0)
+
+
+# ==========================================
+# Проверка оплаты
+# ==========================================
+
+@router.pre_checkout_query()
+async def pre_checkout(
+    pre_checkout_query: PreCheckoutQuery,
+):
+
+    await pre_checkout_query.answer(ok=True)
+
+
+# ==========================================
+# Оплата успешна
+# ==========================================
+
+@router.message(F.successful_payment)
+async def successful_payment(message: Message):
+
+    payload = message.successful_payment.invoice_payload
+
+    tariff_key = payload.replace(
+        "subscription:",
+        "",
+    )
+
+    tariff = await get_tariff(tariff_key)
+
+    if tariff is None:
+        await message.answer(
+            "Ошибка тарифа."
+        )
+        return
+
+    user = await get_or_create_user(
+        message.from_user.id,
+        message.from_user.username,
+    )
+
+    async with async_session() as session:
+        session.add(
+            Payment(
+                user_id=user.id,
+                tariff_key=tariff_key,
+                method="stars",
+                amount=message.successful_payment.total_amount,
+                days=tariff["days"],
+            )
+        )
+        await session.commit()
+
+    await send_subscription(
+        message,
+        user,
+        tariff["days"],
+    )
+
+    await message.answer(
+        PAYMENT_THANKS_TEXT
+    )
+
+    # Для процента в реферальную программу берём рублёвый эквивалент
+    # тарифа (card), а не сумму в Stars — так бонус считается
+    # одинаково независимо от способа оплаты приглашённого.
+    await maybe_reward_referrer(user.id, message.bot, tariff.get("card") or 0)
+
+
+# ==========================================
+# Пока недоступно
+# ==========================================
+
+@router.callback_query(F.data == "soon")
+async def soon(callback: CallbackQuery):
+
+    await callback.answer(
+        "Этот способ оплаты скоро появится 🚀",
+        show_alert=True,
+    )

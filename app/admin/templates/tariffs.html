@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Тарифы — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<div class="section-title">Тарифы</div>
+<div class="text-dim small mb-3">
+    Название и срок тарифа заданы в коде. Здесь можно переопределить цену —
+    отдельно для карты/СБП/крипты, для Telegram Stars и для оплаты бонусным
+    балансом. Пустое поле в форме редактирования сбрасывает цену обратно на
+    значение по умолчанию (для баланса дефолт — это эффективная цена карты).
+</div>
+
+<div class="card-soft p-0">
+    <table class="table table-admin mb-0">
+        <thead>
+        <tr>
+            <th class="ps-3">Тариф</th>
+            <th>Срок</th>
+            <th>Цена (карта/СБП/крипта)</th>
+            <th>Цена (Stars)</th>
+            <th>Цена (баланс)</th>
+            <th class="pe-3"></th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for key, tariff in tariffs.items() %}
+        <tr>
+            <td class="ps-3">{{ tariff.title }}</td>
+            <td class="text-dim">{{ tariff.days }} дн.</td>
+            <td>
+                {% if tariff.card is not none %}
+                    {{ tariff.card }} ₽
+                    {% if tariff.card != defaults[key].card %}
+                    <span class="badge badge-pay-pending ms-1">переопределено</span>
+                    {% endif %}
+                {% else %}
+                <span class="text-dim">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if tariff.stars is not none %}
+                    {{ tariff.stars }} ⭐
+                    {% if tariff.stars != defaults[key].stars %}
+                    <span class="badge badge-pay-pending ms-1">переопределено</span>
+                    {% endif %}
+                {% else %}
+                <span class="text-dim">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if tariff.balance is not none %}
+                    {{ tariff.balance }} ₽
+                    {% if tariff.balance != tariff.card %}
+                    <span class="badge badge-pay-pending ms-1">переопределено</span>
+                    {% endif %}
+                {% else %}
+                <span class="text-dim">—</span>
+                {% endif %}
+            </td>
+            <td class="pe-3 text-end">
+                <a href="/admin/tariffs/{{ key }}/edit" class="btn btn-sm btn-accent">Изменить цену</a>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

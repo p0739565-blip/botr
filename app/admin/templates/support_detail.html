@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Обращение #{{ ticket.id }} — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<a href="/admin/support" class="text-dim small"><i class="bi bi-arrow-left"></i> К списку обращений</a>
+
+<div class="d-flex justify-content-between align-items-center mt-2 mb-1">
+    <div class="section-title mb-0">
+        Обращение #{{ ticket.id }}
+        {% if ticket.status == "open" %}
+        <span class="badge badge-active">открыт</span>
+        {% else %}
+        <span class="badge badge-inactive">закрыт</span>
+        {% endif %}
+    </div>
+</div>
+<div class="text-dim mb-4">
+    {{ ticket.user.username or ticket.user.tg_id }} · создано {{ ticket.created_at.strftime("%d.%m.%Y %H:%M") }}
+    {% if ticket.closed_at %} · закрыто {{ ticket.closed_at.strftime("%d.%m.%Y %H:%M") }}{% endif %}
+</div>
+
+{% if delivery_failed %}
+<div class="alert alert-danger py-2 small mb-3">
+    Ответ сохранён, но не удалось отправить его в Telegram (возможно, пользователь заблокировал бота).
+</div>
+{% endif %}
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card-soft mb-3">
+            {% for m in ticket.messages %}
+            <div class="mb-3 pb-3" style="border-bottom: 1px solid var(--border);">
+                <div class="d-flex justify-content-between text-dim small mb-1">
+                    <span>
+                        {% if m.sender_type == "admin" %}
+                        🛠 {{ m.admin.login if m.admin else "админ" }}
+                        {% else %}
+                        👤 пользователь
+                        {% endif %}
+                    </span>
+                    <span>{{ m.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
+                </div>
+                {% if m.text %}
+                <div>{{ m.text }}</div>
+                {% endif %}
+                {% for att in m.attachments %}
+                    {% if att.media_type == "photo" %}
+                    <img src="/admin/support/media/{{ att.file_path }}" class="img-fluid rounded mt-2" style="max-height: 320px;">
+                    {% else %}
+                    <video src="/admin/support/media/{{ att.file_path }}" controls class="w-100 rounded mt-2" style="max-height: 320px;"></video>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-dim">Сообщений пока нет</div>
+            {% endfor %}
+        </div>
+
+        {% if can_manage and ticket.status == "open" %}
+        <div class="card-soft">
+            <div class="fw-semibold mb-3">Ответить</div>
+            <form method="post" action="/admin/support/{{ ticket.id }}/reply">
+                <textarea name="text" rows="3" class="form-control form-control-admin mb-2" required placeholder="Текст ответа пользователю..."></textarea>
+                <button type="submit" class="btn btn-accent">
+                    <i class="bi bi-send"></i> Отправить в Telegram
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        {% if can_manage %}
+        <div class="card-soft">
+            <div class="fw-semibold mb-3">Управление</div>
+
+            {% if ticket.status == "open" %}
+            <form method="post" action="/admin/support/{{ ticket.id }}/close" class="mb-2"
+                  onsubmit="return confirm('Закрыть это обращение?');">
+                <button type="submit" class="btn btn-danger-soft w-100">
+                    <i class="bi bi-check2-circle"></i> Закрыть обращение
+                </button>
+            </form>
+            {% else %}
+            <form method="post" action="/admin/support/{{ ticket.id }}/reopen" class="mb-2">
+                <button type="submit" class="btn btn-accent w-100">
+                    <i class="bi bi-arrow-counterclockwise"></i> Открыть заново
+                </button>
+            </form>
+            <form method="post" action="/admin/support/{{ ticket.id }}/delete"
+                  onsubmit="return confirm('Удалить обращение безвозвратно, вместе с вложениями?');">
+                <button type="submit" class="btn btn-danger-soft w-100">
+                    <i class="bi bi-trash"></i> Удалить навсегда
+                </button>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

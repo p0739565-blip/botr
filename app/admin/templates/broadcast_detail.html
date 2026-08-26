@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Рассылка #{{ b.id }} — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+{% if b.status.value == "sending" %}
+<meta http-equiv="refresh" content="4">
+{% endif %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="section-title mb-0">Рассылка #{{ b.id }}</div>
+    <a href="/admin/broadcasts" class="btn btn-sm btn-outline-light text-dim border-0">← Ко всем рассылкам</a>
+</div>
+
+{% if test_sent is not none %}
+    {% if test_sent %}
+    <div class="alert alert-success py-2 small mb-3">Тестовое сообщение отправлено</div>
+    {% else %}
+    <div class="alert alert-danger py-2 small mb-3">Не удалось отправить тестовое сообщение — проверьте Telegram ID и что этот пользователь писал боту</div>
+    {% endif %}
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card-soft mb-3">
+            <div class="text-dim small mb-2">Предпросмотр сообщения</div>
+            {% if b.photo_path %}
+            <img src="/admin/broadcasts/media/{{ b.photo_path }}" class="img-fluid rounded mb-2" style="max-height: 320px;">
+            {% endif %}
+            <div style="white-space: pre-wrap;">{{ b.text }}</div>
+            {% if b.button_text %}
+            <div class="mt-2">
+                <span class="btn btn-sm btn-outline-light border" disabled>{{ b.button_text }} ↗</span>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if b.status.value == "draft" %}
+        <div class="card-soft mb-3">
+            <div class="text-dim small mb-2">Тестовая отправка</div>
+            <form method="post" action="/admin/broadcasts/{{ b.id }}/test" class="d-flex gap-2">
+                <input type="text" name="test_tg_id" class="form-control form-control-admin"
+                       placeholder="Telegram ID получателя">
+                <button type="submit" class="btn btn-outline-light text-dim border">Отправить тест</button>
+            </form>
+            <div class="text-dim small mt-1">
+                Пользователь должен хотя бы раз написать боту — иначе Telegram не даст доставить сообщение.
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card-soft mb-3">
+            <div class="text-dim small mb-1">Статус</div>
+            <div class="mb-3">
+                {% if b.status.value == "draft" %}
+                <span class="badge badge-inactive">черновик</span>
+                {% elif b.status.value == "sending" %}
+                <span class="badge" style="background: var(--warn) !important; color: #2b1a00 !important;">отправляется</span>
+                {% else %}
+                <span class="badge badge-active">завершена</span>
+                {% endif %}
+            </div>
+
+            <div class="text-dim small mb-1">Аудитория</div>
+            <div class="mb-1">{{ audience_labels[b.audience] }}</div>
+            {% if b.tariff_filter %}
+            <div class="text-dim small">+ тариф: {{ tariffs[b.tariff_filter].title if b.tariff_filter in tariffs else b.tariff_filter }}</div>
+            {% endif %}
+            {% if b.registered_from or b.registered_to %}
+            <div class="text-dim small">
+                + регистрация:
+                {% if b.registered_from %}с {{ b.registered_from.strftime("%d.%m.%Y") }}{% endif %}
+                {% if b.registered_to %}по {{ b.registered_to.strftime("%d.%m.%Y") }}{% endif %}
+            </div>
+            {% endif %}
+
+            <div class="mt-3">
+                {% if b.status.value == "draft" %}
+                <div class="text-dim small">Получателей на момент создания черновика</div>
+                <div style="font-size: 1.6rem; font-weight: 700;">{{ b.total_recipients }}</div>
+                {% else %}
+                <div class="text-dim small">Прогресс: {{ b.sent_count + b.failed_count }} / {{ b.total_recipients }}</div>
+                <div class="progress mt-1" style="height: 10px; background: var(--bg-soft);">
+                    <div class="progress-bar" role="progressbar"
+                         style="width: {{ b.progress_percent }}%; background: var(--accent);"></div>
+                </div>
+                <div class="d-flex justify-content-between mt-2 small">
+                    <span class="text-dim">✓ доставлено: {{ b.sent_count }}</span>
+                    <span class="text-dim">✗ не доставлено: {{ b.failed_count }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if b.status.value == "draft" %}
+        <form method="post" action="/admin/broadcasts/{{ b.id }}/send"
+              onsubmit="return confirm('Отправить это сообщение {{ b.total_recipients }} получателям? Это необратимо.');">
+            <button type="submit" class="btn btn-accent w-100 mb-2">
+                <i class="bi bi-send"></i> Отправить сейчас
+            </button>
+        </form>
+        <form method="post" action="/admin/broadcasts/{{ b.id }}/delete"
+              onsubmit="return confirm('Удалить этот черновик?');">
+            <button type="submit" class="btn btn-danger-soft w-100">Удалить черновик</button>
+        </form>
+        {% elif b.status.value == "sending" %}
+        <div class="text-dim small text-center">Страница сама обновится через несколько секунд…</div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

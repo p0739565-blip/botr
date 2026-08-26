@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}{{ user.username or user.tg_id }} — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<a href="/admin/users" class="text-dim small"><i class="bi bi-arrow-left"></i> К списку пользователей</a>
+
+<div class="section-title mt-2">{{ user.username or "Без username" }}</div>
+<div class="text-dim mb-4">Telegram ID: {{ user.tg_id }} · в системе с {{ user.created_at.strftime("%d.%m.%Y") }}</div>
+
+{% if user.balance or user.referred_by_id or user.referral_reward_given %}
+<div class="card-soft mb-3 d-flex flex-wrap gap-4 align-items-center">
+    <div>
+        <div class="text-dim small">Бонусный баланс</div>
+        <div class="fw-semibold">{{ user.balance }}₽</div>
+    </div>
+    <div>
+        <div class="text-dim small">Режим награды за рефералов</div>
+        <div class="fw-semibold">{{ "📅 Дни к подписке" if user.referral_reward_mode == "days" else "💰 Бонусный баланс" }}</div>
+    </div>
+    {% if user.referred_by_id %}
+    <div>
+        <div class="text-dim small">Приглашён пользователем</div>
+        <div class="fw-semibold"><a href="/admin/users/{{ user.referred_by_id }}">#{{ user.referred_by_id }}</a></div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if purged is not none %}
+<div class="alert alert-success py-2 small mb-3">
+    Удалено записей подписок: {{ purged }}
+</div>
+{% endif %}
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card-soft mb-3">
+            <div class="fw-semibold mb-3">Подписки</div>
+
+            {% if admin.role == AdminRole.SUPER_ADMIN %}
+            <form method="post" action="/admin/users/{{ user.id }}/subscriptions/delete"
+                  onsubmit="return confirm('Удалить выбранные записи подписок безвозвратно?');">
+            {% endif %}
+
+            <table class="table table-admin mb-0">
+                <thead>
+                <tr>
+                    {% if admin.role == AdminRole.SUPER_ADMIN %}
+                    <th style="width: 30px;"></th>
+                    {% endif %}
+                    <th>Выдана</th>
+                    <th>Истекает</th>
+                    <th>Устройств</th>
+                    <th>Статус</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for sub in subscriptions %}
+                <tr>
+                    {% if admin.role == AdminRole.SUPER_ADMIN %}
+                    <td>
+                        {% if not sub.is_valid %}
+                        <input type="checkbox" name="sub_ids" value="{{ sub.id }}" class="form-check-input">
+                        {% else %}
+                        <span title="Действующую подписку сначала нужно отозвать">🔒</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td class="text-dim">{{ sub.created_at.strftime("%d.%m.%Y") }}</td>
+                    <td class="text-dim">{{ sub.expiry.strftime("%d.%m.%Y %H:%M") }}</td>
+                    <td class="text-dim">{{ sub.device_limit }}</td>
+                    <td>
+                        {% if sub.is_valid %}
+                        <span class="badge badge-active">активна</span>
+                        {% elif not sub.is_active %}
+                        <span class="badge badge-inactive">отозвана</span>
+                        {% else %}
+                        <span class="badge badge-inactive">истекла</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-dim py-3">Подписок ещё не было</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            {% if admin.role == AdminRole.SUPER_ADMIN and subscriptions %}
+            <button type="submit" class="btn btn-danger-soft btn-sm mt-3">
+                <i class="bi bi-trash"></i> Удалить выбранные
+            </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <div class="card-soft">
+            <div class="fw-semibold mb-3">Платежи</div>
+            <table class="table table-admin mb-0">
+                <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Тариф</th>
+                    <th>Способ</th>
+                    <th>Сумма</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for p in payments %}
+                <tr>
+                    <td class="text-dim">{{ p.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
+                    <td>{{ p.tariff_key }}</td>
+                    <td class="text-dim">{{ p.method }}</td>
+                    <td>{{ p.amount }} {% if p.method == "stars" %}⭐{% endif %}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-center text-dim py-3">Платежей ещё не было</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        {% if can_issue %}
+        <div class="card-soft mb-3">
+            <div class="fw-semibold mb-3">Продлить подписку вручную</div>
+            <form method="post" action="/admin/users/{{ user.id }}/extend" class="d-flex gap-2">
+                <input type="number" name="days" min="1" max="3650" value="30"
+                       class="form-control form-control-admin" style="max-width: 120px;">
+                <button type="submit" class="btn btn-accent">Продлить</button>
+            </form>
+            <div class="text-dim small mt-2">
+                Если подписка ещё активна — дни добавятся к остатку, а не начнутся заново.
+            </div>
+        </div>
+        {% endif %}
+
+        {% if can_manage_balance %}
+        <div class="card-soft mb-3">
+            <div class="fw-semibold mb-3">Начислить / списать бонусный баланс</div>
+            <form method="post" action="/admin/users/{{ user.id }}/balance/grant">
+                <div class="d-flex gap-2 mb-2">
+                    <input type="number" name="amount" step="1" placeholder="напр. 100 или -50"
+                           class="form-control form-control-admin" style="max-width: 160px;" required>
+                    <button type="submit" class="btn btn-accent">Применить</button>
+                </div>
+                <input type="text" name="reason" placeholder="Комментарий (необязательно, увидит пользователь)"
+                       class="form-control form-control-admin">
+            </form>
+            <div class="text-dim small mt-2">
+                Положительное число — начислить, отрицательное — списать (текущий баланс: {{ user.balance }}₽).
+                Пользователь получит уведомление в бот.
+            </div>
+        </div>
+        {% endif %}
+
+        {% if can_revoke %}
+        <div class="card-soft mb-3">
+            <div class="fw-semibold mb-3">Управление доступом</div>
+
+            <form method="post" action="/admin/users/{{ user.id }}/revoke" class="mb-2"
+                  onsubmit="return confirm('Точно отозвать активную подписку у этого пользователя? Сервера в клиенте сразу пропадут.');">
+                <button type="submit" class="btn btn-danger-soft w-100">
+                    <i class="bi bi-x-circle"></i> Отозвать текущую подписку
+                </button>
+            </form>
+
+            {% if can_activate %}
+            <form method="post" action="/admin/users/{{ user.id }}/activate">
+                <button type="submit" class="btn btn-accent w-100">
+                    <i class="bi bi-check-circle"></i> Активировать обратно
+                </button>
+            </form>
+            <div class="text-dim small mt-2">
+                Вернёт доступ на оставшийся срок той же подписки (без изменения даты окончания).
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if admin.role == AdminRole.SUPER_ADMIN %}
+        <div class="card-soft">
+            <div class="fw-semibold mb-3">Очистить неактивные записи</div>
+            <form method="post" action="/admin/users/{{ user.id }}/purge"
+                  onsubmit="return confirm('Удалить старые неактивные подписки этого пользователя? Действие необратимо.');"
+                  class="d-flex gap-2">
+                <select name="period" class="form-select form-select-admin">
+                    {% for key, label in purge_periods.items() %}
+                    <option value="{{ key }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-danger-soft">Удалить</button>
+            </form>
+            <div class="text-dim small mt-2">
+                Удаляет только неактивные/истёкшие записи. Действующую подписку это никогда не тронет.
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Журнал действий — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<div class="section-title">Журнал действий</div>
+
+<div class="card-soft p-0">
+    <table class="table table-admin mb-0">
+        <thead>
+        <tr>
+            <th class="ps-3">Когда</th>
+            <th>Кто</th>
+            <th>Действие</th>
+            <th>Объект</th>
+            <th class="pe-3">Детали</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for e in entries %}
+        <tr>
+            <td class="ps-3 text-dim">{{ e.created_at.strftime("%d.%m.%Y %H:%M:%S") }}</td>
+            <td>{{ e.admin.login if e.admin else "—" }}</td>
+            <td>{{ e.action }}</td>
+            <td class="text-dim">{{ e.target or "—" }}</td>
+            <td class="pe-3 text-dim">{{ e.details or "—" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-dim py-4">Записей ещё нет</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

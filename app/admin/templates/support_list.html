@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Тикеты — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="section-title mb-0">Обращения в поддержку</div>
+</div>
+
+{% if purged is not none %}
+<div class="alert alert-success py-2 small mb-3">
+    Удалено закрытых обращений: {{ purged }}
+</div>
+{% endif %}
+
+<div class="d-flex flex-wrap gap-3 mb-3 align-items-center">
+    <div class="d-flex gap-1">
+        <a href="/admin/support?status_filter=open"
+           class="btn btn-sm {% if status_filter == 'open' %}btn-accent{% else %}btn-outline-light text-dim border-0{% endif %}">
+            Открытые
+        </a>
+        <a href="/admin/support?status_filter=closed"
+           class="btn btn-sm {% if status_filter == 'closed' %}btn-accent{% else %}btn-outline-light text-dim border-0{% endif %}">
+            Закрытые
+        </a>
+        <a href="/admin/support?status_filter=all"
+           class="btn btn-sm {% if status_filter == 'all' %}btn-accent{% else %}btn-outline-light text-dim border-0{% endif %}">
+            Все
+        </a>
+    </div>
+
+    {% if can_manage and status_filter == 'closed' %}
+    <form method="post" action="/admin/support/purge-closed"
+          onsubmit="return confirm('Удалить закрытые обращения безвозвратно?');"
+          class="d-flex gap-2 align-items-center">
+        <span class="text-dim small">Удалить те, что</span>
+        <select name="period" class="form-select form-select-admin" style="width: auto;">
+            {% for key, label in close_purge_periods.items() %}
+            <option value="{{ key }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-danger-soft">Удалить</button>
+    </form>
+    {% endif %}
+</div>
+
+<div class="card-soft p-0">
+    <table class="table table-admin mb-0">
+        <thead>
+        <tr>
+            <th class="ps-3">#</th>
+            <th>Пользователь</th>
+            <th>Последнее сообщение</th>
+            <th>Создано</th>
+            <th>Статус</th>
+            <th class="pe-3"></th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for t in tickets %}
+        <tr>
+            <td class="ps-3">{{ t.id }}</td>
+            <td>{{ t.user.username or t.user.tg_id }}</td>
+            <td class="text-dim">
+                {% set last = t.messages[-1] if t.messages else none %}
+                {% if last and last.text %}
+                    {{ last.text[:60] }}{% if last.text|length > 60 %}…{% endif %}
+                {% elif last %}
+                    📎 вложение
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td class="text-dim">{{ t.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
+            <td>
+                {% if t.status == "open" %}
+                <span class="badge badge-active">открыт</span>
+                {% else %}
+                <span class="badge badge-inactive">закрыт</span>
+                {% endif %}
+            </td>
+            <td class="pe-3 text-end">
+                <a href="/admin/support/{{ t.id }}" class="btn btn-sm btn-accent">Открыть</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-dim py-4">Обращений нет</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

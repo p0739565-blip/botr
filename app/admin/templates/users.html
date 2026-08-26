@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Пользователи — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="section-title mb-0">Пользователи</div>
+</div>
+
+{% if purged is not none %}
+<div class="alert alert-success py-2 small mb-3">
+    Удалено старых записей подписок: {{ purged }}
+</div>
+{% endif %}
+
+<div class="d-flex flex-wrap gap-3 mb-3 align-items-start">
+    <form method="get" style="max-width: 360px; flex: 1 1 300px;">
+        <input type="text" name="q" value="{{ q }}" placeholder="Поиск по username или tg_id"
+               class="form-control form-control-admin">
+    </form>
+
+    {% if admin.role == AdminRole.SUPER_ADMIN %}
+    <form method="post" action="/admin/users/purge"
+          onsubmit="return confirm('Удалить старые неактивные подписки ПО ВСЕМ пользователям? Действие необратимо.');"
+          class="d-flex gap-2 align-items-center">
+        <span class="text-dim small">Очистить неактивные записи</span>
+        <select name="period" class="form-select form-select-admin" style="width: auto;">
+            {% for key, label in purge_periods.items() %}
+            <option value="{{ key }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-danger-soft">Очистить БД</button>
+    </form>
+    {% endif %}
+</div>
+
+<div class="card-soft p-0">
+    <table class="table table-admin mb-0">
+        <thead>
+        <tr>
+            <th class="ps-3">Пользователь</th>
+            <th>Telegram ID</th>
+            <th>Подписка</th>
+            <th>Действует до</th>
+            <th class="pe-3"></th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="ps-3">{{ row.user.username or "—" }}</td>
+            <td class="text-dim">{{ row.user.tg_id }}</td>
+            <td>
+                {% if row.active_sub %}
+                <span class="badge badge-active">активна</span>
+                {% else %}
+                <span class="badge badge-inactive">нет</span>
+                {% endif %}
+            </td>
+            <td class="text-dim">
+                {{ row.active_sub.expiry.strftime("%d.%m.%Y %H:%M") if row.active_sub else "—" }}
+            </td>
+            <td class="pe-3 text-end">
+                <a href="/admin/users/{{ row.user.id }}" class="btn btn-sm btn-accent">Открыть</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-dim py-4">Никого не найдено</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

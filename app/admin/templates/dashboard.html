@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block title %}Дашборд — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<div class="section-title">👋 Привет, {{ admin.login }}</div>
+
+{% if stuck_payments or open_tickets %}
+<div class="card-soft mb-3" style="border-color: #ffb84c66;">
+    <div class="fw-semibold mb-2"><i class="bi bi-exclamation-triangle-fill" style="color: var(--warn);"></i> Требует внимания</div>
+    <div class="d-flex flex-wrap gap-4">
+        {% if stuck_payments %}
+        <a href="/admin/payments?status=pending" class="text-decoration-none">
+            <span class="badge badge-pay-pending">{{ stuck_payments }}</span>
+            <span class="text-dim small ms-1">зависших платежей (&gt;10 мин в ожидании)</span>
+        </a>
+        {% endif %}
+        {% if open_tickets %}
+        <a href="/admin/support" class="text-decoration-none">
+            <span class="badge badge-pay-pending">{{ open_tickets }}</span>
+            <span class="text-dim small ms-1">открытых тикетов поддержки</span>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon ok"><i class="bi bi-cash-stack"></i></div>
+            <div class="body">
+                <div class="label">Выручка сегодня</div>
+                <div class="value">{{ stats.revenue_today }}₽</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon ok"><i class="bi bi-graph-up"></i></div>
+            <div class="body">
+                <div class="label">Выручка за неделю</div>
+                <div class="value">{{ stats.revenue_week }}₽</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-wallet2"></i></div>
+            <div class="body">
+                <div class="label">Выручка всего</div>
+                <div class="value">{{ stats.revenue_total }}₽</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon dim"><i class="bi bi-credit-card-2-front"></i></div>
+            <div class="body">
+                <div class="label">Платежей всего</div>
+                <div class="value">{{ stats.payments_total }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-8">
+        <div class="card-soft h-100">
+            <div class="fw-semibold mb-3">Выручка за 7 дней (₽)</div>
+            <canvas id="revenueChart" height="90"></canvas>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card-soft h-100 p-0">
+            <div class="fw-semibold p-3 pb-0">По способу оплаты</div>
+            <table class="table table-admin mb-0">
+                <tbody>
+                {% for row in by_method %}
+                <tr>
+                    <td class="ps-3">{{ row.label }}</td>
+                    <td class="text-dim">{{ row.count }} шт.</td>
+                    <td class="pe-3 text-end">{{ row.amount }}{{ "₽" if row.is_rub else "⭐" }}</td>
+                </tr>
+                {% else %}
+                <tr><td class="text-center text-dim py-3">Платежей ещё не было</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+            <div class="body">
+                <div class="label">Пользователей всего</div>
+                <div class="value">{{ stats.total_users }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon ok"><i class="bi bi-shield-check"></i></div>
+            <div class="body">
+                <div class="label">Активных подписок</div>
+                <div class="value">{{ stats.active_subs }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon warn"><i class="bi bi-calendar-plus"></i></div>
+            <div class="body">
+                <div class="label">Подписок сегодня</div>
+                <div class="value">{{ stats.subs_today }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon danger"><i class="bi bi-hourglass-bottom"></i></div>
+            <div class="body">
+                <div class="label">Истекают за 48ч</div>
+                <div class="value">{{ expiring_soon }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
+        <div class="card-soft h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="fw-semibold">🤝 Реферальная программа</div>
+                <a href="/admin/referrals" class="small">подробнее →</a>
+            </div>
+            <div class="d-flex flex-wrap gap-4">
+                <div>
+                    <div class="text-dim small">Приглашено сегодня</div>
+                    <div class="fw-semibold">{{ referral_summary.invited_today }}</div>
+                </div>
+                <div>
+                    <div class="text-dim small">Приглашено всего</div>
+                    <div class="fw-semibold">{{ referral_summary.invited_total }}</div>
+                </div>
+                <div>
+                    <div class="text-dim small">Оплативших рефералов</div>
+                    <div class="fw-semibold">{{ referral_summary.rewards_total }}</div>
+                </div>
+                {% if referral_summary.top_referrer %}
+                <div>
+                    <div class="text-dim small">Топ реферер</div>
+                    <div class="fw-semibold">
+                        <a href="/admin/users/{{ referral_summary.top_referrer.user.id }}">
+                            {{ referral_summary.top_referrer.user.username or referral_summary.top_referrer.user.tg_id }}
+                        </a>
+                        <span class="text-dim">({{ referral_summary.top_referrer.count }})</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card-soft h-100">
+            <div class="fw-semibold mb-2">Популярность тарифов</div>
+            {% if tariff_popularity %}
+            <div class="d-flex flex-column gap-1">
+                {% for row in tariff_popularity %}
+                <div class="d-flex justify-content-between">
+                    <span class="text-dim">{{ row.title }}</span>
+                    <span class="fw-semibold">{{ row.count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-dim small">Платежей ещё не было</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-6 col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon warn"><i class="bi bi-star-fill"></i></div>
+            <div class="body">
+                <div class="label">Stars сегодня</div>
+                <div class="value">{{ stats.stars_today }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon warn"><i class="bi bi-stars"></i></div>
+            <div class="body">
+                <div class="label">Stars всего</div>
+                <div class="value">{{ stats.stars_total }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-calendar-week"></i></div>
+            <div class="body">
+                <div class="label">Подписок за неделю</div>
+                <div class="value">{{ stats.subs_week }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if admin.role == AdminRole.SUPER_ADMIN %}
+<div class="card-soft mt-4">
+    <div class="fw-semibold mb-3">Последние очистки БД</div>
+    {% if last_cleanups %}
+    <table class="table table-admin mb-0">
+        <thead>
+        <tr>
+            <th>Когда</th>
+            <th>Кто</th>
+            <th>Область</th>
+            <th>Детали</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for c in last_cleanups %}
+        <tr>
+            <td class="text-dim">{{ c.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
+            <td>{{ c.admin.login if c.admin else "—" }}</td>
+            <td class="text-dim">{{ c.target }}</td>
+            <td class="text-dim">{{ c.details }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="text-dim small">Очисток ещё не проводилось.</div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+new Chart(document.getElementById('revenueChart'), {
+    type: 'line',
+    data: {
+        labels: {{ chart_labels | tojson }},
+        datasets: [{
+            label: 'Выручка, ₽',
+            data: {{ chart_values | tojson }},
+            borderColor: '#7c5cff',
+            backgroundColor: '#7c5cff33',
+            fill: true,
+            tension: 0.35,
+            pointBackgroundColor: '#a855f7',
+        }]
+    },
+    options: {
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: '#262b3a' }, ticks: { color: '#9497a6' } },
+            y: { grid: { color: '#262b3a' }, ticks: { color: '#9497a6' }, beginAtZero: true }
+        }
+    }
+});
+</script>
+{% endblock %}

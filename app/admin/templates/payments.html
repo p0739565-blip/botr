@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Платежи — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="section-title mb-0">Платежи</div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-receipt"></i></div>
+            <div class="body">
+                <div class="label">Показано</div>
+                <div class="value">{{ counts.total }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon ok"><i class="bi bi-check-circle"></i></div>
+            <div class="body">
+                <div class="label">Подтверждено</div>
+                <div class="value">{{ counts.confirmed }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon dim"><i class="bi bi-x-circle"></i></div>
+            <div class="body">
+                <div class="label">Отменено</div>
+                <div class="value">{{ counts.canceled }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon warn"><i class="bi bi-hourglass-split"></i></div>
+            <div class="body">
+                <div class="label">Ожидание</div>
+                <div class="value">{{ counts.pending }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% if counts.chargebacked %}
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon danger"><i class="bi bi-arrow-counterclockwise"></i></div>
+            <div class="body">
+                <div class="label">Возвраты</div>
+                <div class="value">{{ counts.chargebacked }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<form method="get" class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+    <input type="text" name="q" value="{{ q }}" placeholder="Поиск по username или tg_id"
+           class="form-control form-control-admin" style="max-width: 280px;">
+
+    <select name="method" class="form-select form-select-admin" style="width: auto;" onchange="this.form.submit()">
+        <option value="">Все способы</option>
+        {% for key, label in method_labels.items() %}
+        <option value="{{ key }}" {% if method == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+
+    <select name="status" class="form-select form-select-admin" style="width: auto;" onchange="this.form.submit()">
+        <option value="">Любой статус</option>
+        {% for key, label in status_labels.items() %}
+        <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+
+    <button type="submit" class="btn btn-accent btn-sm">Применить</button>
+    {% if q or method or status %}
+    <a href="/admin/payments" class="btn btn-sm btn-outline-light border-0 text-dim">Сбросить</a>
+    {% endif %}
+</form>
+
+<div class="card-soft p-0">
+    <table class="table table-admin mb-0">
+        <thead>
+        <tr>
+            <th class="ps-3">Дата и время</th>
+            <th>Пользователь</th>
+            <th>Способ</th>
+            <th>Тариф</th>
+            <th>Сумма</th>
+            <th>Статус</th>
+            <th class="pe-3">ID транзакции</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="ps-3 text-dim">{{ row.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
+            <td>
+                {% if row.user %}
+                <a href="/admin/users/{{ row.user.id }}">{{ row.user.username or row.user.tg_id }}</a>
+                {% else %}
+                <span class="text-dim">—</span>
+                {% endif %}
+            </td>
+            <td>{{ method_labels.get(row.method, row.method) }}</td>
+            <td class="text-dim">{{ row.tariff_title }}</td>
+            <td>{{ row.amount }} {{ row.currency }}</td>
+            <td>
+                <span class="badge badge-pay-{{ row.status }}">{{ status_labels.get(row.status, row.status) }}</span>
+            </td>
+            <td class="pe-3 text-dim small">{{ row.transaction_id or "—" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-dim py-4">Платежей не найдено</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Реферальная программа — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<div class="section-title">Реферальная программа</div>
+<div class="text-dim small mb-3">
+    Каждый пользователь сам выбирает в боте, в каком виде получать награду за
+    своих рефералов — днями к подписке или процентом от оплаты на бонусный
+    баланс. Здесь настраиваются только размеры этих наград, режим по каждому
+    конкретному пользователю тут не меняется.
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-person-plus"></i></div>
+            <div class="body">
+                <div class="label">Пришло по ссылкам</div>
+                <div class="value">{{ total_referred }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon ok"><i class="bi bi-cash-coin"></i></div>
+            <div class="body">
+                <div class="label">Оплатили (начислен бонус)</div>
+                <div class="value">{{ total_rewarded }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon warn"><i class="bi bi-gift"></i></div>
+            <div class="body">
+                <div class="label">Начислено дней всего</div>
+                <div class="value">{{ total_bonus_days_given }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-wallet2"></i></div>
+            <div class="body">
+                <div class="label">Начислено на баланс всего</div>
+                <div class="value">{{ total_bonus_balance_given }}₽</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="text-dim small mb-4">
+    Режим «дни к подписке» выбран у {{ days_mode_users }} польз., «бонусный баланс» — у {{ balance_mode_users }} польз.
+</div>
+
+<div class="card-soft mb-4" style="max-width: 460px;">
+    <div class="fw-semibold mb-3">Размер наград</div>
+    <form method="post" action="/admin/referrals">
+        <div class="mb-3">
+            <label class="form-label small text-dim">
+                📅 Режим «Дни к подписке» — сколько дней пригласившему за первую оплату реферала
+            </label>
+            <input type="number" name="bonus_days" class="form-control form-control-admin"
+                   min="0" step="1" value="{{ bonus_days }}">
+        </div>
+        <div class="mb-1">
+            <label class="form-label small text-dim">
+                💰 Режим «Бонусный баланс» — процент от суммы первой оплаты реферала
+            </label>
+            <div class="input-group">
+                <input type="number" name="bonus_percent" class="form-control form-control-admin"
+                       min="0" max="100" step="1" value="{{ bonus_percent }}">
+                <span class="input-group-text" style="background: var(--bg-soft); border-color: var(--border); color: var(--text-dim);">%</span>
+            </div>
+        </div>
+        <div class="text-dim small mt-2 mb-3">0 в любом поле — соответствующий режим фактически отключён (бонус не начисляется тем, кто его выбрал).</div>
+        <button type="submit" class="btn btn-accent">Сохранить</button>
+    </form>
+</div>
+
+<div class="fw-semibold mb-2">Топ рефереров</div>
+<div class="card-soft p-0">
+    <table class="table table-admin mb-0">
+        <thead>
+        <tr>
+            <th class="ps-3">Пользователь</th>
+            <th>Оплативших рефералов</th>
+            <th>Начислено дней</th>
+            <th class="pe-3">Начислено на баланс</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for row in top %}
+        <tr>
+            <td class="ps-3">
+                <a href="/admin/users/{{ row.user.id }}">{{ row.user.username or row.user.tg_id }}</a>
+            </td>
+            <td>{{ row.rewarded_count }}</td>
+            <td>{{ row.total_days }}</td>
+            <td class="pe-3">{{ row.total_balance }}₽</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-dim py-4">Пока никто не приводил оплативших рефералов</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
