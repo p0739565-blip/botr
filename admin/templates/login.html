@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Вход — Makwin VPN Admin{% endblock %}
+{% block content %}
+<div class="login-wrap">
+    <div class="login-card card-soft">
+        <div class="text-center mb-4">
+            <div class="brand fs-4 mb-1">Makwin <span>VPN</span></div>
+            <div class="text-dim small">Панель администратора</div>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger py-2 small">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="/admin/login">
+            <div class="mb-3">
+                <label class="form-label small text-dim">Логин</label>
+                <input type="text" name="login" class="form-control form-control-admin" required autofocus>
+            </div>
+            <div class="mb-4">
+                <label class="form-label small text-dim">Пароль</label>
+                <input type="password" name="password" class="form-control form-control-admin" required>
+            </div>
+            <button type="submit" class="btn btn-accent w-100">Войти</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
