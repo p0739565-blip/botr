@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Пользователи — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+{% macro list_url(p=None, s=None) %}{% set p = p if p is not none else page %}{% set s = s if s is not none else status %}?page={{ p }}&status={{ s }}{% if q %}&q={{ q | urlencode }}{% endif %}{% endmacro %}
+
+<div class="page-header">
+    <div class="titles">
+        <div class="section-title">Пользователи</div>
+        <div class="subtitle">Управляйте доступом и подписками клиентов.</div>
+    </div>
+    {% if admin.role == AdminRole.SUPER_ADMIN %}
+    <div class="actions">
+        <form method="post" action="/admin/users/purge"
+              data-confirm="Удалить старые неактивные подписки ПО ВСЕМ пользователям? Действие необратимо."
+              data-confirm-ok-label="Очистить"
+              class="d-flex gap-2 align-items-center">
+            <select name="period" class="form-select purge-period-select">
+                {% for key, label in purge_periods.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-danger-soft">Очистить неактивных</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+{% if purged is not none %}
+<div class="alert alert-success py-2 small mb-3">
+    Удалено старых записей подписок: {{ purged }}
+</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card-plain">
+            <div class="stat-label">Всего пользователей</div>
+            <div class="stat-value">{{ stats.total_users }}</div>
+            <div class="stat-note ok">+{{ stats.new_users_week }} за последние 7 дней</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card-plain">
+            <div class="stat-label">Активные подписки</div>
+            <div class="stat-value">{{ stats.active_subs_total }}</div>
+            <div class="stat-note ok">{{ stats.active_pct }}% от всех пользователей</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card-plain">
+            <div class="stat-label">Без подписки</div>
+            <div class="stat-value">{{ stats.no_sub_total }}</div>
+            <div class="stat-note dim">Можно включить в рассылку</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card-plain">
+            <div class="stat-label">Истекают за 48ч</div>
+            <div class="stat-value">{{ stats.expiring_soon_total }}</div>
+            <div class="stat-note warn">Проверьте напоминания</div>
+        </div>
+    </div>
+</div>
+
+<div class="card-soft p-0">
+    <div class="d-flex flex-wrap align-items-center gap-2 p-3" style="border-bottom: 1px solid var(--border);">
+        <form method="get" style="width: 315px;">
+            <input type="hidden" name="status" value="{{ status }}">
+            <input type="search" name="q" value="{{ q }}" placeholder="🔎  Поиск по имени или Telegram ID"
+                   class="form-control form-control-admin">
+        </form>
+
+        <a href="{{ list_url(p=1, s='all') }}" class="filter-btn {{ 'active' if status == 'all' }}">Все</a>
+        <a href="{{ list_url(p=1, s='active') }}" class="filter-btn {{ 'active' if status == 'active' }}">Активные</a>
+        <a href="{{ list_url(p=1, s='none') }}" class="filter-btn {{ 'active' if status == 'none' }}">Без подписки</a>
+        <a href="{{ list_url(p=1, s='expiring') }}" class="filter-btn {{ 'active' if status == 'expiring' }}">Истекают скоро</a>
+    </div>
+
+    <table class="table table-admin mb-0">
+        <thead>
+        <tr>
+            <th class="ps-3">Пользователь</th>
+            <th>Telegram ID</th>
+            <th>Статус</th>
+            <th>Действует до</th>
+            <th class="pe-3"></th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="ps-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="user-avatar">{{ (row.user.username or "?")[0] | upper }}</div>
+                    <div>
+                        <div class="fw-semibold">{{ row.user.username or ("id" ~ row.user.tg_id) }}</div>
+                        <div class="text-dim small">Регистрация: {{ row.user.created_at.strftime("%d.%m.%Y") }}</div>
+                    </div>
+                </div>
+            </td>
+            <td class="text-dim">{{ row.user.tg_id }}</td>
+            <td>
+                {% if row.active_sub %}
+                <span class="badge badge-active">● активна</span>
+                {% else %}
+                <span class="badge badge-inactive">нет подписки</span>
+                {% endif %}
+            </td>
+            <td class="text-dim">
+                {{ row.active_sub.expiry.strftime("%d.%m.%Y %H:%M") if row.active_sub else "—" }}
+            </td>
+            <td class="pe-3 text-end">
+                <a href="/admin/users/{{ row.user.id }}" class="row-menu-btn" title="Открыть карточку пользователя">⋯</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="p-0">
+            <div class="empty-state">
+                <div class="icon"><i class="bi bi-people"></i></div>
+                <div class="title">Никого не найдено</div>
+                <div class="hint">{% if q %}Попробуйте другой запрос поиска.{% else %}По этому фильтру пользователей нет.{% endif %}</div>
+            </div>
+        </td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% if total_filtered > 0 %}
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3" style="border-top: 1px solid var(--border);">
+        <span class="text-dim small">
+            Показано {{ (page - 1) * page_size + 1 }}–{{ [(page * page_size), total_filtered] | min }} из {{ total_filtered }} пользователей
+        </span>
+        {% if total_pages > 1 %}
+        <div class="d-flex gap-1">
+            <a href="{{ list_url(p=[page - 1, 1] | max) }}" class="page-link-btn {{ 'disabled' if page <= 1 }}">‹</a>
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == 1 or p == total_pages or (p >= page - 1 and p <= page + 1) %}
+                <a href="{{ list_url(p=p) }}" class="page-link-btn {{ 'active' if p == page }}">{{ p }}</a>
+                {% elif p == page - 2 or p == page + 2 %}
+                <span class="page-link-btn disabled">…</span>
+                {% endif %}
+            {% endfor %}
+            <a href="{{ list_url(p=[page + 1, total_pages] | min) }}" class="page-link-btn {{ 'disabled' if page >= total_pages }}">›</a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

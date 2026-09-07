@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Новая рассылка — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<div class="section-title">Новая рассылка</div>
+
+{% if error %}
+<div class="alert alert-danger py-2 small mb-3">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/admin/broadcasts" enctype="multipart/form-data">
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card-soft mb-3">
+                <label class="form-label text-dim small">Текст сообщения</label>
+                <textarea name="text" rows="6" class="form-control form-control-admin" required
+                          placeholder="О чём хотите написать пользователям?">{{ form_values.text or "" }}</textarea>
+                <div class="text-dim small mt-1">До 4096 символов (лимит Telegram)</div>
+
+                <div class="mt-3">
+                    <label class="form-label text-dim small">Форматирование</label>
+                    <select name="parse_mode" class="form-select form-select-admin">
+                        <option value="plain" {% if form_values.parse_mode != "html" %}selected{% endif %}>Обычный текст</option>
+                        <option value="html" {% if form_values.parse_mode == "html" %}selected{% endif %}>HTML (&lt;b&gt;, &lt;i&gt;, &lt;a href&gt; и т.п.)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card-soft mb-3">
+                <label class="form-label text-dim small">Фото (необязательно)</label>
+                <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" class="form-control form-control-admin">
+                <div class="text-dim small mt-1">JPEG/PNG/WebP, до 10 МБ. Отправится как фото с этим текстом в подписи.</div>
+            </div>
+
+            <div class="card-soft mb-3">
+                <label class="form-label text-dim small">Кнопка под сообщением (необязательно)</label>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <input type="text" name="button_text" class="form-control form-control-admin"
+                               placeholder="Текст кнопки" value="{{ form_values.button_text or '' }}">
+                    </div>
+                    <div class="col-6">
+                        <input type="text" name="button_url" class="form-control form-control-admin"
+                               placeholder="https://..." value="{{ form_values.button_url or '' }}">
+                    </div>
+                </div>
+                <div class="text-dim small mt-1">Заполните оба поля, чтобы добавить кнопку, или оставьте пустыми</div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card-soft mb-3">
+                <label class="form-label text-dim small">Аудитория</label>
+                {% for a in audiences %}
+                <div class="perm-check">
+                    <input type="radio" name="audience" value="{{ a.value }}" id="aud_{{ a.value }}"
+                           {% if (form_values.audience or "all") == a.value %}checked{% endif %}>
+                    <label for="aud_{{ a.value }}" class="ms-2">{{ audience_labels[a] }}</label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="card-soft mb-3">
+                <label class="form-label text-dim small">Доп.фильтр: тариф из истории оплат (необязательно)</label>
+                <select name="tariff_filter" class="form-select form-select-admin">
+                    <option value="">Любой / без фильтра</option>
+                    {% for key, t in tariffs.items() %}
+                    <option value="{{ key }}" {% if form_values.tariff_filter == key %}selected{% endif %}>{{ t.title }}</option>
+                    {% endfor %}
+                </select>
+
+                <label class="form-label text-dim small mt-3">Дата регистрации: с</label>
+                <input type="date" name="registered_from" class="form-control form-control-admin"
+                       value="{{ form_values.registered_from or '' }}">
+
+                <label class="form-label text-dim small mt-2">по</label>
+                <input type="date" name="registered_to" class="form-control form-control-admin"
+                       value="{{ form_values.registered_to or '' }}">
+                <div class="text-dim small mt-1">Оставьте пустыми, если фильтр по дате не нужен</div>
+            </div>
+
+            <button type="submit" class="btn btn-accent w-100">
+                <i class="bi bi-arrow-right-circle"></i> Далее — посчитать аудиторию
+            </button>
+            <div class="text-dim small mt-2">
+                На следующем шаге можно будет отправить тестовое сообщение себе и только потом запустить рассылку на всех.
+            </div>
+        </div>
+    </div>
+</form>
+
+{% endblock %}
