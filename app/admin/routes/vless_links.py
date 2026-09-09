@@ -57,7 +57,18 @@ async def _groups_for(session, is_dead: bool) -> list[VlessLinkGroup]:
         .options(selectinload(VlessLinkGroup.links))
         .order_by(VlessLinkGroup.position, VlessLinkGroup.id)
     )
-    return result.scalars().all()
+    groups = result.scalars().all()
+
+    # relationship VlessLinkGroup.links не имеет order_by (используется
+    # в нескольких местах, в т.ч. там, где порядок не важен), поэтому
+    # сортируем здесь явно — так же, как _ordered_links_query и
+    # _ungrouped_links сортируют ссылки вне групп. Без этого кнопки
+    # "выше"/"ниже" меняют position в БД, но список в админке всё
+    # равно показывает старый порядок.
+    for group in groups:
+        group.links.sort(key=lambda link: (link.position, link.id))
+
+    return groups
 
 
 async def _ungrouped_links(session, is_dead: bool) -> list[VlessLink]:

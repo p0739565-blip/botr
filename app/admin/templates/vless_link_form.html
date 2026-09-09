@@ -28,9 +28,23 @@
             </div>
         </div>
 
+        {% if not link %}
         <div class="mb-3">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Способ добавления">
+                <input type="radio" class="btn-check" name="input_mode" id="mode-url" value="url" checked
+                       onchange="document.getElementById('url-field').style.display='';document.getElementById('json-field').style.display='none';">
+                <label class="btn btn-outline-secondary" for="mode-url">Ссылка</label>
+
+                <input type="radio" class="btn-check" name="input_mode" id="mode-json" value="json"
+                       onchange="document.getElementById('url-field').style.display='none';document.getElementById('json-field').style.display='';">
+                <label class="btn btn-outline-secondary" for="mode-json">JSON-конфиг</label>
+            </div>
+        </div>
+        {% endif %}
+
+        <div id="url-field" class="mb-3">
             <label class="form-label small text-dim">Ссылка-конфиг (vless://, hy2:// и т.п.)</label>
-            <textarea name="url" class="form-control form-control-admin" rows="4" required
+            <textarea name="url" class="form-control form-control-admin" rows="4"
                       style="font-family: monospace; font-size: 0.85rem;">{{ current_base_url if link else "" }}</textarea>
             <div class="text-dim small mt-1">
                 Вставьте ссылку из xray/панели сервера. Можно вставить как есть, вместе
@@ -38,6 +52,22 @@
                 заменит собой то, что было в ссылке.
             </div>
         </div>
+
+        {% if not link %}
+        <div id="json-field" class="mb-3" style="display: none;">
+            <label class="form-label small text-dim">Клиентский JSON-конфиг (Xray/v2rayNG/NekoBox)</label>
+            <textarea name="config_json" class="form-control form-control-admin" rows="10"
+                      placeholder='{"outbounds": [{"protocol": "vless", ...}], "remarks": "..."}'
+                      style="font-family: monospace; font-size: 0.8rem;"></textarea>
+            <div class="text-dim small mt-1">
+                Вставьте целиком экспортированный JSON-конфиг. Сервер сам найдёт в разделе
+                "outbounds" все рабочие прокси (vless/vmess/trojan/shadowsocks — freedom,
+                blackhole и dns пропускаются) и создаст по ссылке на каждый. Если в конфиге
+                несколько серверов (например, balancer), поле «Название сервера» выше будет
+                проигнорировано в пользу имён из самого конфига.
+            </div>
+        </div>
+        {% endif %}
 
         <div class="mb-3">
             <label class="form-label small text-dim">Группа (необязательно)</label>
