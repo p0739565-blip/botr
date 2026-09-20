@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Редактировать группу — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<a href="/admin/vless-links" class="text-dim small"><i class="bi bi-arrow-left"></i> К списку ссылок</a>
+
+<div class="section-title mt-2">Редактировать группу</div>
+
+{% if error %}
+<div class="alert alert-danger py-2 small">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/admin/vless-links/groups/{{ group.id }}/edit">
+
+    <div class="card-soft mb-3" style="max-width: 640px;">
+        <div class="mb-3">
+            <label class="form-label small text-dim">Название группы</label>
+            <input type="text" name="name" class="form-control form-control-admin" required
+                   value="{{ group.name }}">
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label small text-dim">Описание (необязательно)</label>
+            <input type="text" name="description" class="form-control form-control-admin"
+                   placeholder="например: серверы для 4G-операторов" value="{{ group.description or '' }}">
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-accent">Сохранить</button>
+</form>
+
+{% endblock %}

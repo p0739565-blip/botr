@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ tariff.title }} — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<a href="/admin/tariffs" class="text-dim small"><i class="bi bi-arrow-left"></i> К списку тарифов</a>
+
+<div class="section-title mt-2">{{ tariff.title }}</div>
+<div class="text-dim small mb-3">По умолчанию в коде: {{ default.card }} ₽ / {{ default.stars }} ⭐ · баланс по умолчанию = цена карты</div>
+
+<form method="post" action="/admin/tariffs/{{ tariff_key }}/edit">
+    <div class="card-soft" style="max-width: 420px;">
+        <div class="mb-3">
+            <label class="form-label small text-dim">Цена — карта / СБП / крипта (₽)</label>
+            <input type="number" name="card_price" class="form-control form-control-admin"
+                   min="0" step="1"
+                   value="{{ tariff.card if tariff.card is not none else '' }}"
+                   placeholder="по умолчанию: {{ default.card }}">
+        </div>
+        <div class="mb-3">
+            <label class="form-label small text-dim">Цена — Telegram Stars</label>
+            <input type="number" name="stars_price" class="form-control form-control-admin"
+                   min="0" step="1"
+                   value="{{ tariff.stars if tariff.stars is not none else '' }}"
+                   placeholder="по умолчанию: {{ default.stars }}">
+        </div>
+        <div class="mb-1">
+            <label class="form-label small text-dim">Цена — бонусный баланс (₽)</label>
+            <input type="number" name="balance_price" class="form-control form-control-admin"
+                   min="0" step="1"
+                   value="{{ tariff.balance if tariff.balance != tariff.card else '' }}"
+                   placeholder="по умолчанию = цена карты: {{ tariff.card }}">
+        </div>
+        <div class="text-dim small mt-2">Оставьте поле пустым, чтобы вернуть цену по умолчанию.</div>
+    </div>
+
+    <button type="submit" class="btn btn-accent mt-3">Сохранить</button>
+</form>
+
+{% endblock %}

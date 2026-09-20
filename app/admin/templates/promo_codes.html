@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Промокоды — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <div class="titles">
+        <div class="section-title">Промокоды</div>
+        <div class="subtitle">Скидка на следующую покупку, бонус на баланс — или оба сразу. Каждый пользователь может активировать один и тот же код только один раз.</div>
+    </div>
+    <div class="actions">
+        <a href="/admin/promo-codes/new" class="btn btn-accent"><i class="bi bi-plus-lg"></i> Новый промокод</a>
+    </div>
+</div>
+
+{% if promo_codes %}
+<div class="card-soft p-0">
+    <table class="table table-admin mb-0">
+        <thead>
+        <tr>
+            <th class="ps-3">Код</th>
+            <th>Награда</th>
+            <th>Активации</th>
+            <th>Статус</th>
+            <th>Срок</th>
+            <th class="pe-3"></th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for p in promo_codes %}
+        <tr>
+            <td class="ps-3">
+                <a href="/admin/promo-codes/{{ p.id }}/edit" class="text-decoration-none">
+                    <code class="fw-bold">{{ p.code }}</code>
+                </a>
+                {% if p.comment %}<div class="text-dim small">{{ p.comment }}</div>{% endif %}
+            </td>
+            <td>
+                {% if p.discount_percent %}<span class="audit-chip plus">-{{ p.discount_percent }}%</span>{% endif %}
+                {% if p.bonus_balance %}<span class="audit-chip plus">+{{ p.bonus_balance }}₽</span>{% endif %}
+            </td>
+            <td>
+                {{ p.activations_count }}{% if p.max_activations %} / {{ p.max_activations }}{% else %} <span class="text-dim">/ ∞</span>{% endif %}
+            </td>
+            <td>
+                {% if p.is_expired %}
+                    <span class="badge badge-inactive">Истёк</span>
+                {% elif p.is_exhausted %}
+                    <span class="badge badge-inactive">Исчерпан</span>
+                {% elif p.is_active %}
+                    <span class="badge badge-active">Активен</span>
+                {% else %}
+                    <span class="badge badge-inactive">Выключен</span>
+                {% endif %}
+            </td>
+            <td class="text-dim small">
+                {% if p.expires_at %}до {{ p.expires_at.strftime("%d.%m.%Y") }}{% else %}бессрочно{% endif %}
+            </td>
+            <td class="pe-3 text-end">
+                <a href="/admin/promo-codes/{{ p.id }}/edit" class="btn btn-sm btn-outline-light border-0 text-dim">
+                    <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="/admin/promo-codes/{{ p.id }}/toggle" class="d-inline"
+                      data-confirm="{{ 'Выключить' if p.is_active else 'Включить' }} этот промокод?"
+                      data-confirm-variant="{{ 'btn-danger-soft' if p.is_active else 'btn-accent' }}"
+                      data-confirm-ok-label="{{ 'Выключить' if p.is_active else 'Включить' }}">
+                    <button type="submit" class="btn btn-sm btn-outline-light border-0 text-dim">
+                        <i class="bi bi-toggle2-{{ 'on' if p.is_active else 'off' }}"></i>
+                    </button>
+                </form>
+                <form method="post" action="/admin/promo-codes/{{ p.id }}/delete" class="d-inline"
+                      data-confirm="Удалить промокод «{{ p.code }}» вместе с историей активаций? Это необратимо." data-confirm-ok-label="Удалить">
+                    <button type="submit" class="btn btn-sm btn-outline-light border-0 text-danger">
+                        <i class="bi bi-trash3"></i>
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card-soft">
+    <div class="empty-state">
+        <div class="icon"><i class="bi bi-ticket-perforated"></i></div>
+        <div class="title">Промокодов пока нет</div>
+        <div class="hint">Нажмите «Новый промокод», чтобы создать первый.</div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

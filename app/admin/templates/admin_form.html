@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ "Редактировать админа" if target else "Новый админ" }} — Makwin VPN Admin{% endblock %}
+{% block content %}
+
+<a href="/admin/admins" class="text-dim small"><i class="bi bi-arrow-left"></i> К списку админов</a>
+
+<div class="section-title mt-2">
+    {{ "Редактировать: " + target.login if target else "Новый админ" }}
+</div>
+
+{% if error %}
+<div class="alert alert-danger py-2 small">{{ error }}</div>
+{% endif %}
+
+<form method="post"
+      action="{{ '/admin/admins/' + target.id|string + '/edit' if target else '/admin/admins/new' }}">
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card-soft mb-3">
+                {% if not target %}
+                <div class="mb-3">
+                    <label class="form-label small text-dim">Логин</label>
+                    <input type="text" name="login" class="form-control form-control-admin" required minlength="3">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-dim">Пароль</label>
+                    <input type="password" name="password" class="form-control form-control-admin" required minlength="8">
+                </div>
+                {% else %}
+                <div class="mb-3">
+                    <label class="form-label small text-dim">Новый пароль (необязательно)</label>
+                    <input type="password" name="new_password" class="form-control form-control-admin"
+                           placeholder="оставьте пустым, чтобы не менять" minlength="8">
+                </div>
+                {% endif %}
+
+                <div class="mb-2">
+                    <label class="form-label small text-dim">Роль (пресет прав)</label>
+                    <select name="role" class="form-select form-select-admin" id="roleSelect">
+                        {% for r in roles %}
+                        <option value="{{ r.value }}"
+                            {% if target and target.role == r %}selected{% endif %}>
+                            {{ role_labels[r] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="text-dim small">
+                    Роль — это только стартовый набор прав. Ниже можно донастроить вручную под конкретного человека.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card-soft">
+                <div class="fw-semibold mb-3">Права доступа</div>
+                {% for p in all_permissions %}
+                <div class="perm-check form-check">
+                    <input class="form-check-input" type="checkbox" name="permissions" value="{{ p.value }}"
+                           id="perm_{{ p.value }}"
+                           {% if target and p in target_permissions %}checked{% endif %}>
+                    <label class="form-check-label" for="perm_{{ p.value }}">
+                        {{ permission_labels[p] }}
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-accent mt-3">
+        {{ "Сохранить" if target else "Создать админа" }}
+    </button>
+</form>
+
+{% endblock %}
